@@ -13,6 +13,7 @@ import { LlmModule } from './llm/llm.module';
 import { BillingAgentModule } from './agents/billing/billing.module';
 import { BillingModule } from './tools/billing/billing.module';
 import { Invoice } from "src/invoice/entity/invoice.entity";
+import { ReturnModule } from './agents/return/return.module';
 @Module({
   imports: [
     UserModule,
@@ -45,6 +46,7 @@ import { Invoice } from "src/invoice/entity/invoice.entity";
     LlmModule,
     BillingAgentModule,
     BillingModule,
+    ReturnModule,
 
   ],
   controllers: [AppController],

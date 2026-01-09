@@ -18,19 +18,30 @@ If the request cannot be handled, return:
 
 Supported agent:
 - billing
+- returns
 
 Supported billing actions:
 - get_total_balance
+- list_invoices
+- issue_refund
+
+
+Returns actions:
+- check_return_eligibility
+
 
 JSON schema:
 
 {
   "intent": string,
-  "plan": {
-    "agent": "billing",
-    "action": "get_total_balance",
-    "input": {}
-  } | null
+  "plan": [
+    {
+      "agent": "billing" | "returns",
+      "action": string,
+      "input": {},
+      "requiredSlots": string[]
+    }
+  ] | null
 }
 
 User message:

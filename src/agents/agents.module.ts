@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { ReturnModule } from './return/return.module';
 
-@Module({})
+@Module({
+  imports: [ReturnModule]
+})
 export class AgentsModule {}

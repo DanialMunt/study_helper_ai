@@ -10,7 +10,7 @@ export class BillingRepository {
     private readonly repo: Repository<Invoice>,
   ) {}
 
-  findByUser(userId: number) {
+  async findByUser(userId: number) {
     return this.repo.find({
       where: {
         user: { id: userId },
@@ -18,5 +18,26 @@ export class BillingRepository {
       relations: ['user'], 
     });
   }
+
+  async findOne(invoiceId: number): Promise<Invoice | null> {
+    return this.repo.findOne({
+      where: { id: invoiceId },
+      relations: ['user'], 
+    });
+  }
+
+
+   async save(invoice: Invoice): Promise<Invoice> {
+    return this.repo.save(invoice);
+  }
+
+  async findUnrefundedByUser(userId: number): Promise<Invoice[]> {
+    return this.repo.find({
+      where: { user: { id: userId }, refunded: false },
+      order: { id: 'ASC' },
+    });
+  }
+
+
 }
 

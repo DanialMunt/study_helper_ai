@@ -15,6 +15,9 @@ export class Invoice {
   @Column({ type: 'boolean', default: false })
   refunded: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  eligible: boolean;
+
   @Column({ type: 'varchar', nullable: true })
   description: string; 
 }
