@@ -11,4 +11,10 @@ export class Invoice {
 
   @ManyToOne(() => User, (user) => user.invoices)
   user: User; 
+
+  @Column({ type: 'boolean', default: false })
+  refunded: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  description: string; 
 }

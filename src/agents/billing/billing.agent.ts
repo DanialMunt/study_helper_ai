@@ -8,9 +8,16 @@ export class BillingAgent implements Agent {
 
   constructor(private readonly billingTool: BillingTool) {}
 
-  async handle(_: any): Promise<string> {
-    const result = await this.billingTool.execute({ userId: 2 });
+  async handle(plan: { action: string; input: any }): Promise<string> {
+    switch (plan.action) {
+      case 'get_total_balance': {
+        const result = await this.billingTool.execute({ userId: 1 });
+        return `Your total outstanding balance is €${result.total}`;
+      }
 
-    return `Your total outstanding balance is €${result.total}`;
+      default:
+        throw new Error(`Unknown billing action: ${plan.action}`);
+    }
   }
 }
+
