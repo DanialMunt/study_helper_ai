@@ -27,6 +27,15 @@ export class BillingRepository {
   }
 
 
+  
+
+   async findByInvoiceId(invoiceId: number): Promise<Invoice | null> {
+        return this.repo.findOne({
+            where: { id: invoiceId },
+        });
+    }
+
+
    async save(invoice: Invoice): Promise<Invoice> {
     return this.repo.save(invoice);
   }

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { BillingRepository } from './billing.repository';
+import { BillingRepository } from '../billing/billing.repository';
 import { McpTool } from '../../mcp/mcp-tool.interface';
 import { Invoice } from 'src/invoice/entity/invoice.entity';
 @Injectable()
@@ -28,14 +28,25 @@ export class BillingTool {
     return { explanation: `Invoice #${invoice.id} for €${invoice.amount} (${invoice.description ?? 'no description'})` };
   }
 
-  async issueRefund(invoiceId: number, amount: number): Promise<{ success: boolean; refundedAmount: number }> {
-    const invoice = await this.repo.findOne(invoiceId);
-    if (!invoice || invoice.refunded) return { success: false, refundedAmount: 0 };
+  // async issueRefund(invoiceId: number, amount: number): Promise<{ success: boolean; refundedAmount: number }> {
+  //   const invoice = await this.repo.findByInvoiceId(invoiceId);
+  //   if (!invoice || invoice.refunded) return { success: false, refundedAmount: 0 };
+    
+    
+  //   invoice.refunded = true;
+  //   await this.repo.save(invoice);
+
+  //   return { success: true, refundedAmount: amount };
+  // }
+
+   async issueRefund(invoiceId: number): Promise<{ success: boolean;  }> {
+    const invoice = await this.repo.findByInvoiceId(invoiceId);
+    if (!invoice || invoice.refunded) return { success: false };
     
     
     invoice.refunded = true;
     await this.repo.save(invoice);
 
-    return { success: true, refundedAmount: amount };
+    return { success: true };
   }
 }

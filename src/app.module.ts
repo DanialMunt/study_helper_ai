@@ -14,6 +14,7 @@ import { BillingAgentModule } from './agents/billing/billing.module';
 import { BillingModule } from './tools/billing/billing.module';
 import { Invoice } from "src/invoice/entity/invoice.entity";
 import { ReturnModule } from './agents/return/return.module';
+import { ReturnAgentModule } from './tools/return/return.module';
 @Module({
   imports: [
     UserModule,
@@ -47,6 +48,7 @@ import { ReturnModule } from './agents/return/return.module';
     BillingAgentModule,
     BillingModule,
     ReturnModule,
+    ReturnAgentModule,
 
   ],
   controllers: [AppController],

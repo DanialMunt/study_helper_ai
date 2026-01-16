@@ -11,10 +11,12 @@ import { ConversationContext, OrchestratorPlan } from './orchestrator.types';
 import { orchestratorPrompt } from './orchestrator.prompt';
 import { extractJson } from 'src/utils/extractJson';
 import { ReturnsAgent } from 'src/agents/return/return.agent';
-
+import { returnsAgentPrompt } from 'src/agents/return/returnsAgent.prompt';
+import { billingAgentPrompt } from 'src/agents/billing/billingAgent.prompt';
 @Injectable()
 export class OrchestratorAgent {
-  private context: ConversationContext | null = null
+  private context: ConversationContext | null = null;
+
   constructor(
     private readonly llm: LlmService,
     private readonly billingAgent: BillingAgent,
@@ -23,32 +25,114 @@ export class OrchestratorAgent {
 
   async handle(message: string): Promise<string> {
 
+
+    if (this.context?.awaitingSlot) {
+      this.context.slots[this.context.awaitingSlot] = message;
+      console.log(`Slot filled: ${this.context.awaitingSlot} = ${message}`);
+      this.context.awaitingSlot = undefined;
+    }
+
+
+    if (!this.context) {
+      const raw = await this.llm.generate(orchestratorPrompt(message));
+      let planJson: OrchestratorPlan;
+
+      try {
+        planJson = extractJson(raw);
+      } catch (e) {
+        console.error('Invalid LLM output:', raw);
+        return 'Sorry, something went wrong.';
+      }
+
+      if (!planJson || !planJson.plan || planJson.plan.length === 0) {
+        return 'Sorry, your request is unsupported.';
+      }
+
+      this.context = {
+        intent: planJson.intent,
+        plan: planJson.plan,
+        currentStep: 0,
+        slots: {},
+        awaitingSlot: undefined
+      };
+
+      console.log('Initial plan:', this.context.plan);
+    }
+
+    const stepResults: string[] = [];
+
+
+    while (this.context.currentStep < this.context.plan.length) {
+      const step = this.context.plan[this.context.currentStep];
+      console.log('Current step:', step);
+
+
+      for (const slot of step.requiredSlots ?? []) {
+        if (!this.context.slots[slot]) {
+          this.context.awaitingSlot = slot;
+          return `Please provide ${slot}.`;
+        }
+      }
+      step.input = {
+        ...step.input,
+        ...this.context.slots
+      };
+
+      const input = { ...step.input };
+
+
+      if (step.agent === 'returns') {
+        const returnsResult = await this.returnsAgent.handleWithPrompt({
+          orderId: input.orderId,
+          context: this.context
+        });
+
+
+
+        console.log('ReturnsAgent result:', returnsResult);
+
+        if (returnsResult.decision !== 'approved') {
+          this.context = null; 
+          return returnsResult.message || 'This order is not eligible for return.';
+        }
+
+        stepResults.push(returnsResult.message);
+
+   
+      
+      } else if (step.agent === 'billing') {
+
+        if (!step.input.orderId) {
+          return 'Cannot proceed: missing orderId.';
+        }
+
     
-    const raw = await this.llm.generate(orchestratorPrompt(message));
-    let plan: OrchestratorPlan
 
-    try {
-      plan = extractJson(raw);
-    } catch (e) {
-      console.error('Invalid LLM output:', raw);
-      return 'Sorry, something went wrong.';
+        const billingResult = await this.billingAgent.handleWithPrompt({
+          orderId: input.orderId,
+          decision: "approved",
+          context: this.context
+        });
+
+        console.log('BillingAgent result:', billingResult);
+
+        if (billingResult.status !== 'success') {
+          this.context = null; 
+          return billingResult.message || 'Refund failed.';
+        }
+
+        stepResults.push(billingResult.message);
+
+      } else {
+        return 'Unsupported agent.';
+      }
+
+      this.context.currentStep++;
     }
 
-    console.log("Plan: ", plan)
 
-    if (!plan || !plan.plan || plan.plan.length === 0) {
-    return 'Entschuldigung Bruder, aber du hast unsupported request';
-  }
-
-    const step = plan.plan[0];
-    if (step.agent === 'billing') {
-      return this.billingAgent.handle(step);
-    }
-
-    if (step.agent === 'returns') {
-      return this.returnsAgent.handle(step.action, step.input);
-    }
-
-    return 'Entschuldigung Bruder, aber du hast unsupported request';
+    this.context = null;
+    return stepResults.join(', ');
   }
 }
+
