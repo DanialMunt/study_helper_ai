@@ -1,4 +1,9 @@
-export function returnsAgentPrompt(orderId: number, context: any = {}, eligible: boolean, refunded: boolean): string {
+export function returnsAgentPrompt(
+  orderId: number,
+  eligible: boolean,
+  refunded: boolean,
+  context: any = {},
+): string {
   return `
 You are a Returns Agent, a specialist deciding if an order qualifies for a return.
 

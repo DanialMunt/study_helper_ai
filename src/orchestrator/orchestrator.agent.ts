@@ -1,12 +1,6 @@
-import {
-  Injectable
-} from '@nestjs/common';
-import {
-  LlmService
-} from 'src/llm/llm.service';
-import {
-  BillingAgent
-} from '../agents/billing/billing.agent';
+import { Injectable } from '@nestjs/common';
+import { LlmService } from 'src/llm/llm.service';
+import { BillingAgent } from '../agents/billing/billing.agent';
 import { ConversationContext, OrchestratorPlan } from './orchestrator.types';
 import { orchestratorPrompt } from './orchestrator.prompt';
 import { extractJson } from 'src/utils/extractJson';
@@ -20,18 +14,27 @@ export class OrchestratorAgent {
   constructor(
     private readonly llm: LlmService,
     private readonly billingAgent: BillingAgent,
-    private readonly returnsAgent: ReturnsAgent
-  ) { }
+    private readonly returnsAgent: ReturnsAgent,
+  ) {}
 
   async handle(message: string): Promise<string> {
-
-
     if (this.context?.awaitingSlot) {
-      this.context.slots[this.context.awaitingSlot] = message;
-      console.log(`Slot filled: ${this.context.awaitingSlot} = ${message}`);
+      const slot = this.context.awaitingSlot;
+
+      if (slot === 'orderId') {
+        const num = Number(message);
+        if (Number.isNaN(num)) {
+          return 'Order ID must be a number. Please provide a valid orderId.';
+        }
+        this.context.slots.orderId = num;
+        console.log(`Slot filled: orderId = ${num}`);
+      } else {
+        this.context.slots[slot] = message;
+        console.log(`Slot filled: ${slot} = ${message}`);
+      }
+
       this.context.awaitingSlot = undefined;
     }
-
 
     if (!this.context) {
       const raw = await this.llm.generate(orchestratorPrompt(message));
@@ -53,7 +56,7 @@ export class OrchestratorAgent {
         plan: planJson.plan,
         currentStep: 0,
         slots: {},
-        awaitingSlot: undefined
+        awaitingSlot: undefined,
       };
 
       console.log('Initial plan:', this.context.plan);
@@ -61,11 +64,9 @@ export class OrchestratorAgent {
 
     const stepResults: string[] = [];
 
-
     while (this.context.currentStep < this.context.plan.length) {
       const step = this.context.plan[this.context.currentStep];
       console.log('Current step:', step);
-
 
       for (const slot of step.requiredSlots ?? []) {
         if (!this.context.slots[slot]) {
@@ -75,54 +76,46 @@ export class OrchestratorAgent {
       }
       step.input = {
         ...step.input,
-        ...this.context.slots
+        ...this.context.slots,
       };
 
       const input = { ...step.input };
 
-
       if (step.agent === 'returns') {
         const returnsResult = await this.returnsAgent.handleWithPrompt({
           orderId: input.orderId,
-          context: this.context
+          context: this.context,
         });
-
-
 
         console.log('ReturnsAgent result:', returnsResult);
 
         if (returnsResult.decision !== 'approved') {
-          this.context = null; 
-          return returnsResult.message || 'This order is not eligible for return.';
+          this.context = null;
+          return (
+            returnsResult.message || 'This order is not eligible for return.'
+          );
         }
 
         stepResults.push(returnsResult.message);
-
-   
-      
       } else if (step.agent === 'billing') {
-
         if (!step.input.orderId) {
           return 'Cannot proceed: missing orderId.';
         }
 
-    
-
         const billingResult = await this.billingAgent.handleWithPrompt({
           orderId: input.orderId,
-          decision: "approved",
-          context: this.context
+          decision: 'approved',
+          context: this.context,
         });
 
         console.log('BillingAgent result:', billingResult);
 
         if (billingResult.status !== 'success') {
-          this.context = null; 
+          this.context = null;
           return billingResult.message || 'Refund failed.';
         }
 
         stepResults.push(billingResult.message);
-
       } else {
         return 'Unsupported agent.';
       }
@@ -130,9 +123,7 @@ export class OrchestratorAgent {
       this.context.currentStep++;
     }
 
-
     this.context = null;
     return stepResults.join(', ');
   }
 }
-
