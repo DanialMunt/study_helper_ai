@@ -11,7 +11,7 @@ import { TechSupportAgent } from 'src/agents/tech/tech.agent';
 import { ConversationStoreService } from 'src/session/conversation-store.service';
 @Injectable()
 export class OrchestratorAgent {
-  private context: ConversationContext | null = null;
+  // private context: ConversationContext | null = null;
 
   constructor(
     private readonly llm: LlmService,
@@ -36,6 +36,7 @@ export class OrchestratorAgent {
         console.log(`Slot filled: orderId = ${num}`);
       } else {
         ctx.slots[slot] = message;
+        await this.store.set(sessionId, ctx);
         console.log(`Slot filled: ${slot} = ${message}`);
       }
 
@@ -43,7 +44,7 @@ export class OrchestratorAgent {
       await this.store.set(sessionId, ctx);
     }
 
-    if (!this.context) {
+    if (!ctx) {
       const raw = await this.llm.generate(orchestratorPrompt(message));
       let planJson: OrchestratorPlan;
 
@@ -58,34 +59,35 @@ export class OrchestratorAgent {
         return 'Sorry, your request is unsupported.';
       }
 
-      this.context = {
+      ctx = {
         intent: planJson.intent,
         plan: planJson.plan,
         currentStep: 0,
         slots: {},
         awaitingSlot: undefined,
       };
-
-      console.log('Initial plan:', this.context.plan);
+      await this.store.set(sessionId, ctx);
+      console.log('Initial plan:', ctx.plan);
     }
 
     const stepResults: string[] = [];
 
-    while (this.context.currentStep < this.context.plan.length) {
-      const step = this.context.plan[this.context.currentStep];
+    while (ctx.currentStep < ctx.plan.length) {
+      const step = ctx.plan[ctx.currentStep];
       console.log('Current step:', step);
 
       for (const slot of step.requiredSlots ?? []) {
-        if (!this.context.slots[slot]) {
-          this.context.awaitingSlot = slot;
+        if (!ctx.slots[slot]) {
+          ctx.awaitingSlot = slot;
+          await this.store.set(sessionId, ctx);
           return `Please provide ${slot}.`;
         }
-        if (this.context.awaitingSlot === "email") return "Please provide your email address for confirmation.";
+        if (ctx.awaitingSlot === "email") return "Please provide your email address for confirmation.";
 
       }
       step.input = {
         ...step.input,
-        ...this.context.slots,
+        ...ctx.slots,
       };
 
       const input = { ...step.input };
@@ -93,13 +95,13 @@ export class OrchestratorAgent {
       if (step.agent === 'returns') {
         const returnsResult = await this.returnsAgent.handleWithPrompt({
           orderId: input.orderId,
-          context: this.context,
+          context: ctx,
         });
 
         console.log('ReturnsAgent result:', returnsResult);
 
         if (returnsResult.decision !== 'approved') {
-          this.context = null;
+          await this.store.clear(sessionId);
           return (
             returnsResult.message || 'This order is not eligible for return.'
           );
@@ -114,24 +116,37 @@ export class OrchestratorAgent {
         const billingResult = await this.billingAgent.handleWithPrompt({
           orderId: input.orderId,
           decision: 'approved',
-          context: this.context,
+          context: ctx,
         });
 
         console.log('BillingAgent result:', billingResult);
 
         if (billingResult.status !== 'success') {
-          this.context = null;
+          await this.store.clear(sessionId);
           return billingResult.message || 'Refund failed.';
         }
 
         stepResults.push(billingResult.message);
-      } else if (step.agent === "tech") {
-        
+      } else if (step.agent === "email") {
+        const email = input.email;
+        const orderId = input.orderId;
+
+        const emailRes = await this.mcp.callTool(
+          "email.send_refund_confirmation",
+          { email, invoiceId: orderId }
+        );
+
+             stepResults.push(`Confirmation email sent (${emailRes.id}).`);
+      }
+
+
+      else if (step.agent === "tech") {
+
         const issueDescription = input.issueDescription ?? message;
 
         const techRes = await this.techAgent.handleWithPrompt({
           message: issueDescription,
-          context: this.context,
+          context: ctx,
         });
 
         if (typeof techRes === "string") {
@@ -154,10 +169,11 @@ export class OrchestratorAgent {
         return 'Unsupported agent.';
       }
 
-      this.context.currentStep++;
+      ctx.currentStep++;
+      await this.store.set(sessionId, ctx);
     }
 
-    this.context = null;
+    // await this.store.clear(sessionId);
     return stepResults.join(', ');
   }
 }

@@ -8,7 +8,7 @@ export class ChatController {
   @Post()
   async chat( @Body("sessionId") sessionId: string,
   @Body("message") message: string,) {
-    const reply = await this.orchestrator.handle(message);
+    const reply = await this.orchestrator.handle(message, sessionId);
     return { reply };
   }
 }

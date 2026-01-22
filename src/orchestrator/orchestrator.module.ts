@@ -5,8 +5,9 @@ import { LlmModule } from '../llm/llm.module';
 import { ReturnAgentModule } from 'src/agents/return/return.module';
 import { McpClientModule } from 'src/mcp/mcp-client.module';
 import { TechSupportModule } from 'src/agents/tech/tech.module';
+import { SessionModule } from 'src/session/session.module';
 @Module({
-  imports: [BillingAgentModule, LlmModule, ReturnAgentModule, McpClientModule, TechSupportModule],
+  imports: [BillingAgentModule, LlmModule, ReturnAgentModule, McpClientModule, TechSupportModule, SessionModule],
   providers: [OrchestratorAgent],
   exports: [OrchestratorAgent],
 })
