@@ -50,7 +50,7 @@ export class OrchestratorAgent {
     await this.store.set(sid!, ctx);
   }
 
-  // 2) Create plan if ctx doesn't exist (new session)
+
   if (!ctx) {
     const raw = await this.llm.generate(orchestratorPrompt(message));
 
@@ -58,8 +58,7 @@ export class OrchestratorAgent {
     try {
       planJson = extractJson(raw);
     } catch {
-      // If we have no session yet, create a temporary one only if you want.
-      // Simpler: just reply without session.
+    
       return { reply: "Sorry, something went wrong.", sessionId: sid ?? "" };
     }
 
@@ -75,7 +74,7 @@ export class OrchestratorAgent {
       awaitingSlot: undefined,
     };
 
-    // Create DB-generated sessionId if missing
+    
     if (!sid) {
       sid = await this.store.create(ctx);
     } else {
@@ -83,19 +82,19 @@ export class OrchestratorAgent {
     }
   }
 
-  // sid must exist now
+  
   if (!sid) {
-    // Should not happen, but keeps TS happy
+
     return { reply: "Sorry, session initialization failed.", sessionId: "" };
   }
 
   const stepResults: string[] = [];
 
-  // 3) Execute plan
+
   while (ctx.currentStep < ctx.plan.length) {
     const step = ctx.plan[ctx.currentStep];
 
-    // Ask for missing slots
+
     for (const slot of step.requiredSlots ?? []) {
       if (!ctx.slots[slot]) {
         ctx.awaitingSlot = slot;
@@ -108,7 +107,7 @@ export class OrchestratorAgent {
       }
     }
 
-    // Merge slots into input
+  
     step.input = { ...step.input, ...ctx.slots };
     const input = { ...step.input };
 
@@ -151,7 +150,7 @@ export class OrchestratorAgent {
         invoiceId: input.orderId,
       });
 
-      stepResults.push(`Confirmation email sent (${emailRes.id}).`);
+      stepResults.push(`Confirmation email sent ${input.email} (${emailRes.id}).`);
     } else if (step.agent === "tech") {
       const issueDescription = input.issueDescription ?? message;
 
@@ -183,7 +182,7 @@ export class OrchestratorAgent {
     await this.store.set(sid, ctx);
   }
 
-  // 4) Done
+ 
   await this.store.clear(sid);
   return { reply: stepResults.join(", "), sessionId: sid };
 }
