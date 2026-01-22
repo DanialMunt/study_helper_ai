@@ -3,8 +3,10 @@ export type OrchestratorPlan = {
   plan: PlanStep[] | null;
 };
 
+export type AgentName = "billing" | "returns" | "email" | "tech"
+
 export type PlanStep = {
-  agent: 'billing' | 'returns';
+  agent: AgentName;
   action: string;
   input: Record<string, any>;
   requiredSlots?: string[];

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "kb_login_001",
+    "title": "Can't log in / password issues",
+    "tags": ["login", "password", "account"],
+    "content": "1) Reset password. 2) Check caps lock. 3) If account locked, wait 15 minutes. 4) If still failing, contact support with your email and a screenshot."
+  },
+  {
+    "id": "kb_error_502",
+    "title": "502 Bad Gateway",
+    "tags": ["502", "gateway", "server"],
+    "content": "Try again in 2 minutes. Check internet. If persistent, provide timestamp and screenshot; we will escalate to technical team."
+  },
+  {
+    "id": "kb_app_crash_001",
+    "title": "App crashes on start",
+    "tags": ["crash", "startup", "mobile"],
+    "content": "1) Restart the app/device. 2) Update to latest version. 3) Clear cache. 4) Reinstall. 5) If still crashing, send device model + OS version + screenshot."
+  }
+]

@@ -3,69 +3,83 @@ import { BillingTool } from 'src/tools/billing/billing.tool';
 import { LlmService } from 'src/llm/llm.service';
 import { billingAgentPrompt } from './billingAgent.prompt';
 import { extractJson } from 'src/utils/extractJson';
-
+import { McpClientService } from 'src/mcp/client';
 @Injectable()
 export class BillingAgent {
   constructor(
     private readonly billingTool: BillingTool,
-    private readonly llm: LlmService
-  ) {}
+    private readonly llm: LlmService,
+    private readonly mcp: McpClientService
+  ) { }
 
 
-  async handle(plan: { action: string; input: any }): Promise<string> {
-    switch (plan.action) {
-      case 'issue_refund':
-        await this.billingTool.issueRefund(plan.input.orderId);
-        return `Refund has been issued for order ${plan.input.orderId}`;
-      default:
-        throw new Error(`Unknown billing action: ${plan.action}`);
+  // async handle(plan: { action: string; input: any }): Promise<string> {
+  //   switch (plan.action) {
+  //     case 'issue_refund':
+  //       await this.billingTool.issueRefund(plan.input.orderId);
+  //       return `Refund has been issued for order ${plan.input.orderId}`;
+  //     default:
+  //       throw new Error(`Unknown billing action: ${plan.action}`);
+  //   }
+  // }
+
+
+  async handleWithPrompt(input: {
+    orderId: number;
+    decision: "approved" | "rejected";
+    context?: any;
+  }) {
+    const { orderId, decision, context = {} } = input;
+
+
+    const prompt = billingAgentPrompt(orderId, decision, context);
+
+
+    const raw = await this.llm.generate(prompt);
+    console.log("Billing Agent's response: ", raw)
+
+    let result: any;
+    try {
+      result = extractJson(raw);
+    } catch (e) {
+      console.error('Invalid LLM output for BillingAgent:', raw);
+      return {
+        status: 'failed',
+        transactionId: null,
+        message: 'Cannot process refund.'
+      };
     }
-  }
 
 
- async handleWithPrompt(input: {
-  orderId: number;
-  decision: "approved" | "rejected" ;
-  context?: any;
-}) {
-  const { orderId, decision , context = {} } = input;
+    if (result.status !== 'success') {
+      return {
+        status: 'failed',
+        transactionId: null,
+        message: result.message || 'Refund not approved.'
+      };
+    }
 
 
-  const prompt = billingAgentPrompt(orderId, decision , context);
+    // await this.billingTool.issueRefund(orderId);
+    const refundRes = await this.mcp.callTool<
+      { invoiceId: number },
+      { success: boolean; message?: string }
+    >("billing.issue_refund", { invoiceId: orderId });
+
+    if (!refundRes.success) {
+      return {
+        status: "failed",
+        transactionId: null,
+        message: refundRes.message || "Refund failed at tool layer.",
+      };
+    }
 
 
-  const raw = await this.llm.generate(prompt);
-  console.log("Billing Agent's response: ", raw)
-
-  let result: any;
-  try {
-    result = extractJson(raw);
-  } catch (e) {
-    console.error('Invalid LLM output for BillingAgent:', raw);
     return {
-      status: 'failed',
-      transactionId: null,
-      message: 'Cannot process refund.'
+      status: 'success',
+      transactionId: result.transactionId ?? null,
+      message: result.message ?? `Refund has been issued for order ${orderId}.`
     };
   }
-
- 
-  if (result.status !== 'success') {
-    return {
-      status: 'failed',
-      transactionId: null,
-      message: result.message || 'Refund not approved.'
-    };
-  }
-
- 
-  await this.billingTool.issueRefund(orderId);
-
-  return {
-    status: 'success',
-    transactionId: result.transactionId ?? null,
-    message: result.message ?? `Refund has been issued for order ${orderId}.`
-  };
-}
 
 }

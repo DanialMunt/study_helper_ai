@@ -3,27 +3,25 @@ import { ReturnTool } from 'src/tools/return/return.tool';
 import { LlmService } from 'src/llm/llm.service';
 import { returnsAgentPrompt } from './returnsAgent.prompt';
 import { extractJson } from 'src/utils/extractJson';
-
+import { McpClientService } from 'src/mcp/client';
 @Injectable()
 export class ReturnsAgent {
   constructor(
     private readonly returnTool: ReturnTool,
     private readonly llm: LlmService,
+    private readonly mcp: McpClientService,
   ) {}
 
-  async handle(action: string, input: any) {
-    if (action === 'check_return_eligibility') {
-      const { orderId } = input;
-      const result = await this.returnTool.handle(orderId);
-      return result;
-    }
-    throw new Error('Unknown returns action');
-  }
 
   async handleWithPrompt(input: { orderId: number; context?: any }) {
     const { orderId, context = {} } = input;
 
-    const toolResult = await this.returnTool.handle(orderId);
+    // const toolResult = await this.returnTool.handle(orderId);
+     const toolResult = await this.mcp.callTool<
+      { invoiceId: number },
+      { eligible: boolean; refunded: boolean; message: string }
+    >("returns.check_eligibility", { invoiceId: orderId });
+    
     const { eligible, refunded } = toolResult;
     console.log('True flags:', eligible, refunded);
     const prompt = returnsAgentPrompt(orderId, eligible, refunded, context);
@@ -43,7 +41,7 @@ export class ReturnsAgent {
       };
     }
 
-    // TOOL VALIDATION ALWAYS WINS
+    
     if (!toolResult?.eligible) {
       return {
         decision: 'rejected',
@@ -60,7 +58,7 @@ export class ReturnsAgent {
       };
     }
 
-    // LLM VALIDATION NEXT
+    
     if (result.decision !== 'approved') {
       return {
         decision: 'rejected',
@@ -69,7 +67,7 @@ export class ReturnsAgent {
       };
     }
 
-    // FINAL APPROVED
+    
     return {
       decision: 'approved',
       reason: result.reason ?? 'Eligibility confirmed',

@@ -9,4 +9,4 @@ import { BillingTool } from './billing.tool';
   providers: [BillingRepository, BillingTool],
   exports: [BillingTool],
 })
-export class BillingModule {}
+export class BillingToolModule {}

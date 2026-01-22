@@ -6,7 +6,8 @@ export class ChatController {
   constructor(private readonly orchestrator: OrchestratorAgent) {}
 
   @Post()
-  async chat(@Body('message') message: string) {
+  async chat( @Body("sessionId") sessionId: string,
+  @Body("message") message: string,) {
     const reply = await this.orchestrator.handle(message);
     return { reply };
   }

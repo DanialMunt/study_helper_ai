@@ -15,12 +15,4 @@ export class ReturnRepository {
         });
     }
 
-    // async markProcessed(id: number) {
-    //     const request = await this.findByInvoiceId({ where: { id } });
-    //     if (!request) return false;
-
-    //     request.eligible = false; // mark processed
-    //     await this.save(request);
-    //     return true;
-    // }
 }

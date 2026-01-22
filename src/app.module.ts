@@ -11,12 +11,15 @@ import { AgentsModule } from './agents/agents.module';
 import { McpModule } from './mcp/mcp.module';
 import { LlmModule } from './llm/llm.module';
 import { BillingAgentModule } from './agents/billing/billing.module';
-import { BillingModule } from './tools/billing/billing.module';
+import { BillingToolModule } from './tools/billing/billing.module';
 import { Invoice } from "src/invoice/entity/invoice.entity";
-import { ReturnModule } from './agents/return/return.module';
-import { ReturnAgentModule } from './tools/return/return.module';
-import { EmailTool } from './tools/email/email.tool';
+import { ReturnAgentModule } from './agents/return/return.module';
+import { ReturnToolModule } from './tools/return/return.module';
+import { KbToolModule } from './tools/kb/kb.module';
 import { EmailModule } from './tools/email/email.module';
+import { TechSupportModule } from './agents/tech/tech.module';
+import { ConversationSession } from './session/entity/conversation-session.entity';
+import { SessionModule } from './session/session.module';
 @Module({
   imports: [
     UserModule,
@@ -36,7 +39,7 @@ import { EmailModule } from './tools/email/email.module';
         username: configService.get('DB_USERNAME'),
         password: configService.get('DB_PASSWORD'),
         database: configService.get('DB_DATABASE'),
-        entities: [User, Invoice],
+        entities: [User, Invoice, ConversationSession],
         synchronize: true //for production switch to false
       }
     },
@@ -48,10 +51,13 @@ import { EmailModule } from './tools/email/email.module';
     McpModule,
     LlmModule,
     BillingAgentModule,
-    BillingModule,
-    ReturnModule,
+    BillingToolModule,
     ReturnAgentModule,
-    EmailModule
+    ReturnToolModule,
+    EmailModule,
+    KbToolModule,
+    TechSupportModule,
+    SessionModule
 
   ],
   controllers: [AppController],

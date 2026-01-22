@@ -1,1 +1,3 @@
 {"id":"email_1769065374887_035956a73662f","ts":"2026-01-22T07:02:54.887Z","to":"user@example.com","subject":"Refund confirmation","body":"Your refund for invoice #123 has been initiated.","metadata":{"invoiceId":123}}
+{"id":"email_1769071957334_d5491ee0c431b","ts":"2026-01-22T08:52:37.334Z","to":"test@gmail.com","subject":"Refund","body":"Refund was sended","metadata":{"invoiceId":123}}
+{"id":"email_1769078375423_4fb7aa0408381","ts":"2026-01-22T10:39:35.423Z","to":"test@gmail.com","subject":"Refund confirmation for invoice #1","body":"We have initiated your refund for invoice #1. If you have questions, reply to this email.","metadata":{"invoiceId":1,"type":"refund_confirmation"}}

@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
 import { BillingAgent } from './billing.agent';
-import { BillingModule } from '../../tools/billing/billing.module';
+import { BillingToolModule } from '../../tools/billing/billing.module';
 import { LlmModule } from 'src/llm/llm.module';
+import { McpClientModule } from 'src/mcp/mcp-client.module';
 @Module({
-  imports: [BillingModule, LlmModule],
+  imports: [BillingToolModule, LlmModule, McpClientModule],
   providers: [BillingAgent],
   exports: [BillingAgent],
 })

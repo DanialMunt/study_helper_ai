@@ -2,12 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { BillingRepository } from '../billing/billing.repository';
 import { McpTool } from '../../mcp/mcp-tool.interface';
 import { Invoice } from 'src/invoice/entity/invoice.entity';
-import { ReturnRepository } from './return.repository';
+// import { ReturnRepository } from './return.repository';
+import { ReturnRepository } from "src/tools/return/return.repository";
+
 @Injectable()
 export class ReturnTool {
     constructor(private readonly returnsRepo: ReturnRepository) { }
 
     async handle(invoiceId: number) {
+        console.error("[ReturnTool] returnsRepo:", !!this.returnsRepo);
+        console.error("[ReturnTool] returnsRepo.findByInvoiceId:", typeof (this.returnsRepo as any)?.findByInvoiceId);
+
         if (!invoiceId) {
             return { eligible: false, refunded: false, message: 'Missing invoiceId.' };
         }

@@ -5,8 +5,10 @@ import { ConversationContext, OrchestratorPlan } from './orchestrator.types';
 import { orchestratorPrompt } from './orchestrator.prompt';
 import { extractJson } from 'src/utils/extractJson';
 import { ReturnsAgent } from 'src/agents/return/return.agent';
-import { returnsAgentPrompt } from 'src/agents/return/returnsAgent.prompt';
-import { billingAgentPrompt } from 'src/agents/billing/billingAgent.prompt';
+
+import { McpClientService } from 'src/mcp/client';
+import { TechSupportAgent } from 'src/agents/tech/tech.agent';
+import { ConversationStoreService } from 'src/session/conversation-store.service';
 @Injectable()
 export class OrchestratorAgent {
   private context: ConversationContext | null = null;
@@ -15,25 +17,30 @@ export class OrchestratorAgent {
     private readonly llm: LlmService,
     private readonly billingAgent: BillingAgent,
     private readonly returnsAgent: ReturnsAgent,
-  ) {}
+    private readonly mcp: McpClientService,
+    private readonly techAgent: TechSupportAgent,
+    private readonly store: ConversationStoreService
+  ) { }
 
-  async handle(message: string): Promise<string> {
-    if (this.context?.awaitingSlot) {
-      const slot = this.context.awaitingSlot;
+  async handle(message: string, sessionId: string): Promise<string> {
+    let ctx = (await this.store.get(sessionId)) as ConversationContext | null;
+    if (ctx?.awaitingSlot) {
+      const slot = ctx.awaitingSlot;
 
       if (slot === 'orderId') {
         const num = Number(message);
         if (Number.isNaN(num)) {
           return 'Order ID must be a number. Please provide a valid orderId.';
         }
-        this.context.slots.orderId = num;
+        ctx.slots.orderId = num;
         console.log(`Slot filled: orderId = ${num}`);
       } else {
-        this.context.slots[slot] = message;
+        ctx.slots[slot] = message;
         console.log(`Slot filled: ${slot} = ${message}`);
       }
 
-      this.context.awaitingSlot = undefined;
+      ctx.awaitingSlot = undefined;
+      await this.store.set(sessionId, ctx);
     }
 
     if (!this.context) {
@@ -73,6 +80,8 @@ export class OrchestratorAgent {
           this.context.awaitingSlot = slot;
           return `Please provide ${slot}.`;
         }
+        if (this.context.awaitingSlot === "email") return "Please provide your email address for confirmation.";
+
       }
       step.input = {
         ...step.input,
@@ -116,7 +125,32 @@ export class OrchestratorAgent {
         }
 
         stepResults.push(billingResult.message);
-      } else {
+      } else if (step.agent === "tech") {
+        
+        const issueDescription = input.issueDescription ?? message;
+
+        const techRes = await this.techAgent.handleWithPrompt({
+          message: issueDescription,
+          context: this.context,
+        });
+
+        if (typeof techRes === "string") {
+          stepResults.push(techRes);
+        } else {
+          const steps = Array.isArray(techRes.steps) ? techRes.steps : [];
+          const qs = Array.isArray(techRes.clarifyingQuestions) ? techRes.clarifyingQuestions : [];
+          const answer = techRes.answer ?? "Here are some steps to try:";
+
+          const formatted =
+            answer +
+            (steps.length ? `Steps:- ${steps.join(" - ")}` : "") +
+            (qs.length ? `Questions: - ${qs.join(" - ")}` : "");
+
+          stepResults.push(formatted);
+        }
+      }
+
+      else {
         return 'Unsupported agent.';
       }
 
