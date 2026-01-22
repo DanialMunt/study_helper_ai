@@ -1,17 +1,17 @@
 import { Column, Entity, PrimaryGeneratedColumn, OneToMany } from "typeorm";
 import { Invoice } from "src/invoice/entity/invoice.entity";
 @Entity()
-export class User{
+export class User {
     @PrimaryGeneratedColumn()
     id: number;
-    
-    @Column()
+
+    @Column({ type: "varchar" })
     firstName: string;
-        
-    @Column()
+
+    @Column({ type: "varchar" })
     lastName: string;
-        
-    @Column({unique: true})
+
+    @Column({ unique: true, type: "varchar" })
     email: string;
 
     @OneToMany(() => Invoice, (invoice) => invoice.user)

@@ -15,6 +15,8 @@ import { BillingModule } from './tools/billing/billing.module';
 import { Invoice } from "src/invoice/entity/invoice.entity";
 import { ReturnModule } from './agents/return/return.module';
 import { ReturnAgentModule } from './tools/return/return.module';
+import { EmailTool } from './tools/email/email.tool';
+import { EmailModule } from './tools/email/email.module';
 @Module({
   imports: [
     UserModule,
@@ -22,11 +24,11 @@ import { ReturnAgentModule } from './tools/return/return.module';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
-        console.log(
-    'DB_PASSWORD:',
-    configService.get('DB_PASSWORD'),
-    typeof configService.get('DB_PASSWORD'),
-  );
+  //       console.log(
+  //   'DB_PASSWORD:',
+  //   configService.get('DB_PASSWORD'),
+  //   typeof configService.get('DB_PASSWORD'),
+  // );
         return {
         type: 'postgres',
         host: configService.get('DB_HOST'),
@@ -49,6 +51,7 @@ import { ReturnAgentModule } from './tools/return/return.module';
     BillingModule,
     ReturnModule,
     ReturnAgentModule,
+    EmailModule
 
   ],
   controllers: [AppController],

@@ -32,16 +32,6 @@ export class BillingTool {
     };
   }
 
-  // async issueRefund(invoiceId: number, amount: number): Promise<{ success: boolean; refundedAmount: number }> {
-  //   const invoice = await this.repo.findByInvoiceId(invoiceId);
-  //   if (!invoice || invoice.refunded) return { success: false, refundedAmount: 0 };
-
-  //   invoice.refunded = true;
-  //   await this.repo.save(invoice);
-
-  //   return { success: true, refundedAmount: amount };
-  // }
-
   async issueRefund(
     invoiceId: number,
   ): Promise<{ success: boolean; message?: string }> {
