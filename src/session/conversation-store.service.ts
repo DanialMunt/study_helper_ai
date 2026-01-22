@@ -23,6 +23,19 @@ export class ConversationStoreService {
     return row.context ?? null;
   }
 
+
+  async create(context: Record<string, any>, ttlMinutes = 30): Promise<string> {
+  const expiresAt = new Date(Date.now() + ttlMinutes * 60_000);
+
+  const row = await this.repo.save({
+    context,
+    expiresAt,
+  } as any);
+
+  return row.sessionId;
+}
+
+
   async set(sessionId: string, context: Record<string, any>, ttlMinutes = 30) {
     const expiresAt = new Date(Date.now() + ttlMinutes * 60_000);
 

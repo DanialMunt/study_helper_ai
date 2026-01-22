@@ -20,6 +20,7 @@ import { EmailModule } from './tools/email/email.module';
 import { TechSupportModule } from './agents/tech/tech.module';
 import { ConversationSession } from './session/entity/conversation-session.entity';
 import { SessionModule } from './session/session.module';
+import { OcrModule } from './ocr/ocr.module';
 @Module({
   imports: [
     UserModule,
@@ -57,7 +58,8 @@ import { SessionModule } from './session/session.module';
     EmailModule,
     KbToolModule,
     TechSupportModule,
-    SessionModule
+    SessionModule,
+    OcrModule
 
   ],
   controllers: [AppController],

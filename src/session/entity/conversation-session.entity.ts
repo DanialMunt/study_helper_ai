@@ -1,8 +1,8 @@
-import { Column, Entity, PrimaryColumn, UpdateDateColumn } from "typeorm";
+import { Column, Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm";
 
 @Entity({ name: "conversation_sessions" })
 export class ConversationSession {
-  @PrimaryColumn({ type: "text", name: "session_id" })
+  @PrimaryGeneratedColumn("uuid", { name: "session_id" })
   sessionId!: string;
 
   @Column({ type: "jsonb" })

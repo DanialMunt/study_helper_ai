@@ -22,158 +22,169 @@ export class OrchestratorAgent {
     private readonly store: ConversationStoreService
   ) { }
 
-  async handle(message: string, sessionId: string): Promise<string> {
-    let ctx = (await this.store.get(sessionId)) as ConversationContext | null;
-    if (ctx?.awaitingSlot) {
-      const slot = ctx.awaitingSlot;
+  async handle(
+  message: string,
+  sessionId?: string,
+): Promise<{ reply: string; sessionId: string }> {
 
-      if (slot === 'orderId') {
-        const num = Number(message);
-        if (Number.isNaN(num)) {
-          return 'Order ID must be a number. Please provide a valid orderId.';
-        }
-        ctx.slots.orderId = num;
-        console.log(`Slot filled: orderId = ${num}`);
-      } else {
-        ctx.slots[slot] = message;
-        await this.store.set(sessionId, ctx);
-        console.log(`Slot filled: ${slot} = ${message}`);
+  let sid: string | null = sessionId ?? null;
+  let ctx: ConversationContext | null = sid
+    ? ((await this.store.get(sid)) as ConversationContext | null)
+    : null;
+
+
+  if (ctx?.awaitingSlot) {
+    const slot = ctx.awaitingSlot;
+
+    if (slot === "orderId") {
+      const num = Number(message);
+      if (Number.isNaN(num)) {
+        return { reply: "Order ID must be a number. Please provide a valid orderId.", sessionId: sid! };
       }
-
-      ctx.awaitingSlot = undefined;
-      await this.store.set(sessionId, ctx);
+      ctx.slots.orderId = num;
+    } else {
+      ctx.slots[slot] = message;
     }
 
-    if (!ctx) {
-      const raw = await this.llm.generate(orchestratorPrompt(message));
-      let planJson: OrchestratorPlan;
-
-      try {
-        planJson = extractJson(raw);
-      } catch (e) {
-        console.error('Invalid LLM output:', raw);
-        return 'Sorry, something went wrong.';
-      }
-
-      if (!planJson || !planJson.plan || planJson.plan.length === 0) {
-        return 'Sorry, your request is unsupported.';
-      }
-
-      ctx = {
-        intent: planJson.intent,
-        plan: planJson.plan,
-        currentStep: 0,
-        slots: {},
-        awaitingSlot: undefined,
-      };
-      await this.store.set(sessionId, ctx);
-      console.log('Initial plan:', ctx.plan);
-    }
-
-    const stepResults: string[] = [];
-
-    while (ctx.currentStep < ctx.plan.length) {
-      const step = ctx.plan[ctx.currentStep];
-      console.log('Current step:', step);
-
-      for (const slot of step.requiredSlots ?? []) {
-        if (!ctx.slots[slot]) {
-          ctx.awaitingSlot = slot;
-          await this.store.set(sessionId, ctx);
-          return `Please provide ${slot}.`;
-        }
-        if (ctx.awaitingSlot === "email") return "Please provide your email address for confirmation.";
-
-      }
-      step.input = {
-        ...step.input,
-        ...ctx.slots,
-      };
-
-      const input = { ...step.input };
-
-      if (step.agent === 'returns') {
-        const returnsResult = await this.returnsAgent.handleWithPrompt({
-          orderId: input.orderId,
-          context: ctx,
-        });
-
-        console.log('ReturnsAgent result:', returnsResult);
-
-        if (returnsResult.decision !== 'approved') {
-          await this.store.clear(sessionId);
-          return (
-            returnsResult.message || 'This order is not eligible for return.'
-          );
-        }
-
-        stepResults.push(returnsResult.message);
-      } else if (step.agent === 'billing') {
-        if (!step.input.orderId) {
-          return 'Cannot proceed: missing orderId.';
-        }
-
-        const billingResult = await this.billingAgent.handleWithPrompt({
-          orderId: input.orderId,
-          decision: 'approved',
-          context: ctx,
-        });
-
-        console.log('BillingAgent result:', billingResult);
-
-        if (billingResult.status !== 'success') {
-          await this.store.clear(sessionId);
-          return billingResult.message || 'Refund failed.';
-        }
-
-        stepResults.push(billingResult.message);
-      } else if (step.agent === "email") {
-        const email = input.email;
-        const orderId = input.orderId;
-
-        const emailRes = await this.mcp.callTool(
-          "email.send_refund_confirmation",
-          { email, invoiceId: orderId }
-        );
-
-             stepResults.push(`Confirmation email sent (${emailRes.id}).`);
-      }
-
-
-      else if (step.agent === "tech") {
-
-        const issueDescription = input.issueDescription ?? message;
-
-        const techRes = await this.techAgent.handleWithPrompt({
-          message: issueDescription,
-          context: ctx,
-        });
-
-        if (typeof techRes === "string") {
-          stepResults.push(techRes);
-        } else {
-          const steps = Array.isArray(techRes.steps) ? techRes.steps : [];
-          const qs = Array.isArray(techRes.clarifyingQuestions) ? techRes.clarifyingQuestions : [];
-          const answer = techRes.answer ?? "Here are some steps to try:";
-
-          const formatted =
-            answer +
-            (steps.length ? `Steps:- ${steps.join(" - ")}` : "") +
-            (qs.length ? `Questions: - ${qs.join(" - ")}` : "");
-
-          stepResults.push(formatted);
-        }
-      }
-
-      else {
-        return 'Unsupported agent.';
-      }
-
-      ctx.currentStep++;
-      await this.store.set(sessionId, ctx);
-    }
-
-    // await this.store.clear(sessionId);
-    return stepResults.join(', ');
+    ctx.awaitingSlot = undefined;
+    await this.store.set(sid!, ctx);
   }
+
+  // 2) Create plan if ctx doesn't exist (new session)
+  if (!ctx) {
+    const raw = await this.llm.generate(orchestratorPrompt(message));
+
+    let planJson: OrchestratorPlan;
+    try {
+      planJson = extractJson(raw);
+    } catch {
+      // If we have no session yet, create a temporary one only if you want.
+      // Simpler: just reply without session.
+      return { reply: "Sorry, something went wrong.", sessionId: sid ?? "" };
+    }
+
+    if (!planJson?.plan?.length) {
+      return { reply: "Sorry, your request is unsupported.", sessionId: sid ?? "" };
+    }
+
+    ctx = {
+      intent: planJson.intent,
+      plan: planJson.plan,
+      currentStep: 0,
+      slots: {},
+      awaitingSlot: undefined,
+    };
+
+    // Create DB-generated sessionId if missing
+    if (!sid) {
+      sid = await this.store.create(ctx);
+    } else {
+      await this.store.set(sid, ctx);
+    }
+  }
+
+  // sid must exist now
+  if (!sid) {
+    // Should not happen, but keeps TS happy
+    return { reply: "Sorry, session initialization failed.", sessionId: "" };
+  }
+
+  const stepResults: string[] = [];
+
+  // 3) Execute plan
+  while (ctx.currentStep < ctx.plan.length) {
+    const step = ctx.plan[ctx.currentStep];
+
+    // Ask for missing slots
+    for (const slot of step.requiredSlots ?? []) {
+      if (!ctx.slots[slot]) {
+        ctx.awaitingSlot = slot;
+        await this.store.set(sid, ctx);
+
+        if (slot === "email") {
+          return { reply: "Please provide your email address for confirmation.", sessionId: sid };
+        }
+        return { reply: `Please provide ${slot}.`, sessionId: sid };
+      }
+    }
+
+    // Merge slots into input
+    step.input = { ...step.input, ...ctx.slots };
+    const input = { ...step.input };
+
+    if (step.agent === "returns") {
+      const returnsResult = await this.returnsAgent.handleWithPrompt({
+        orderId: input.orderId,
+        context: ctx,
+      });
+
+      if (returnsResult.decision !== "approved") {
+        await this.store.clear(sid);
+        return {
+          reply: returnsResult.message || "This order is not eligible for return.",
+          sessionId: sid,
+        };
+      }
+
+      stepResults.push(returnsResult.message);
+    } else if (step.agent === "billing") {
+      if (!input.orderId) {
+        await this.store.clear(sid);
+        return { reply: "Cannot proceed: missing orderId.", sessionId: sid };
+      }
+
+      const billingResult = await this.billingAgent.handleWithPrompt({
+        orderId: input.orderId,
+        decision: "approved",
+        context: ctx,
+      });
+
+      if (billingResult.status !== "success") {
+        await this.store.clear(sid);
+        return { reply: billingResult.message || "Refund failed.", sessionId: sid };
+      }
+
+      stepResults.push(billingResult.message);
+    } else if (step.agent === "email") {
+      const emailRes = await this.mcp.callTool("email.send_refund_confirmation", {
+        email: input.email,
+        invoiceId: input.orderId,
+      });
+
+      stepResults.push(`Confirmation email sent (${emailRes.id}).`);
+    } else if (step.agent === "tech") {
+      const issueDescription = input.issueDescription ?? message;
+
+      const techRes = await this.techAgent.handleWithPrompt({
+        message: issueDescription,
+        context: ctx,
+      });
+
+      if (typeof techRes === "string") {
+        stepResults.push(techRes);
+      } else {
+        const steps = Array.isArray(techRes.steps) ? techRes.steps : [];
+        const qs = Array.isArray(techRes.clarifyingQuestions) ? techRes.clarifyingQuestions : [];
+        const answer = techRes.answer ?? "Here are some steps to try:";
+
+        const formatted =
+          answer +
+          (steps.length ? `\n\nSteps:\n- ${steps.join("\n- ")}` : "") +
+          (qs.length ? `\n\nQuestions:\n- ${qs.join("\n- ")}` : "");
+
+        stepResults.push(formatted);
+      }
+    } else {
+      await this.store.clear(sid);
+      return { reply: "Unsupported agent.", sessionId: sid };
+    }
+
+    ctx.currentStep++;
+    await this.store.set(sid, ctx);
+  }
+
+  // 4) Done
+  await this.store.clear(sid);
+  return { reply: stepResults.join(", "), sessionId: sid };
+}
 }
