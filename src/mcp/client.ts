@@ -18,9 +18,8 @@ export class McpClientService implements OnModuleDestroy {
 
     // DEV: run MCP server via tsx
     // PROD: switch to `node dist/mcp/server.js`
-    const command = process.env.MCP_COMMAND ?? "npx";
-    const args =
-      process.env.MCP_ARGS?.split(" ") ?? ["tsx", "src/mcp/server.ts"];
+    const command = "node";
+    const args = ["dist/mcp/server.js"];
 
     this.client = new Client({
       name: "study-helper-api",

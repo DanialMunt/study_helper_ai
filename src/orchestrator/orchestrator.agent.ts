@@ -1,11 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Invoice } from 'src/invoice/entity/invoice.entity';
 import { LlmService } from 'src/llm/llm.service';
 import { BillingAgent } from '../agents/billing/billing.agent';
 import { ConversationContext, OrchestratorPlan } from './orchestrator.types';
 import { orchestratorPrompt } from './orchestrator.prompt';
 import { extractJson } from 'src/utils/extractJson';
 import { ReturnsAgent } from 'src/agents/return/return.agent';
-
 import { McpClientService } from 'src/mcp/client';
 import { TechSupportAgent } from 'src/agents/tech/tech.agent';
 import { ConversationStoreService } from 'src/session/conversation-store.service';
@@ -19,7 +21,9 @@ export class OrchestratorAgent {
     private readonly returnsAgent: ReturnsAgent,
     private readonly mcp: McpClientService,
     private readonly techAgent: TechSupportAgent,
-    private readonly store: ConversationStoreService
+    private readonly store: ConversationStoreService,
+    @InjectRepository(Invoice)
+    private readonly invoiceRepo: Repository<Invoice>,
   ) { }
 
   async handle(
@@ -95,16 +99,18 @@ export class OrchestratorAgent {
   while (ctx.currentStep < ctx.plan.length) {
     const step = ctx.plan[ctx.currentStep];
 
-    // Ask for missing slots
-    for (const slot of step.requiredSlots ?? []) {
-      if (!ctx.slots[slot]) {
-        ctx.awaitingSlot = slot;
-        await this.store.set(sid, ctx);
+    if (step.agent === "email") {
+      step.requiredSlots = ["orderId"];
+    }
 
-        if (slot === "email") {
-          return { reply: "Please provide your email address for confirmation.", sessionId: sid };
+// Ask for missing slots EXCEPT email step (email step never asks user)
+    if (step.agent !== "email") {
+      for (const slot of step.requiredSlots ?? []) {
+        if (!ctx.slots[slot]) {
+          ctx.awaitingSlot = slot;
+          await this.store.set(sid, ctx);
+          return { reply: `Please provide ${slot}.`, sessionId: sid };
         }
-        return { reply: `Please provide ${slot}.`, sessionId: sid };
       }
     }
 
@@ -146,12 +152,35 @@ export class OrchestratorAgent {
 
       stepResults.push(billingResult.message);
     } else if (step.agent === "email") {
-      const emailRes = await this.mcp.callTool("email.send_refund_confirmation", {
-        email: input.email,
-        invoiceId: input.orderId,
+      const invoice = await this.invoiceRepo.findOne({
+        where: { id: input.orderId },
+        relations: { user: true },
       });
 
-      stepResults.push(`Confirmation email sent (${emailRes.id}).`);
+      if (!invoice || !invoice.user) {
+        await this.store.clear(sid);
+        return { reply: "Unable to find user email for this order.", sessionId: sid };
+      }
+
+      const userEmail = invoice.user.email;
+      const itemDescription = invoice.description ?? "No description provided";
+      const itemAmount = invoice.amount;
+
+      const emailRes = await this.mcp.callTool(
+        "email.send_refund_confirmation",
+        {
+          email: userEmail,
+          invoiceId: input.orderId,
+          description: itemDescription,
+          amount: itemAmount
+        }
+      );
+
+      stepResults.push(
+        `Confirmation email sent to ${userEmail} (${emailRes.id}). ` +
+        `Item: "${itemDescription}", Amount: €${itemAmount}.`
+      );
+
     } else if (step.agent === "tech") {
       const issueDescription = input.issueDescription ?? message;
 

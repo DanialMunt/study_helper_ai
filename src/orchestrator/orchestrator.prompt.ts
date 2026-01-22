@@ -14,7 +14,7 @@ RULES (VERY STRICT):
 - No markdown, no backticks, no comments, no explanations
 - NEVER invent fields
 - NEVER include "amount" or "refundAmount"
-- Refunds ALWAYS require ONLY: orderId (and email for confirmation if available)
+- Refunds ALWAYS require ONLY: orderId
 - Returns eligibility ALWAYS requires ONLY: orderId
 
 SUPPORTED AGENTS:
@@ -34,18 +34,21 @@ billing:
 email:
   - send_refund_confirmation
 tech:
-  -resolve_issue
+  - resolve_issue
 
 EMAIL RULES:
-- send_refund_confirmation requires requiredSlots including: ["email","orderId"]
-- input for email step may include: { "email": string, "orderId": number }
+- send_refund_confirmation requires requiredSlots = ["orderId"]
+- NEVER ask the user for email
+- The system will automatically fetch user email from the database using:
+  orderId -> invoice.user.email
+- input for email step must include only: { "orderId": number }
 - Do NOT create subject/body text. The email tool will generate a standard template.
 
 REFUND WORKFLOW RULE:
 If user wants a refund:
-  1. First: returns.check_return_eligibility (requiredSlots=["orderId"])
-  2. Second: billing.issue_refund (requiredSlots=["orderId"])
-  3. Third: email.send_refund_confirmation (requiredSlots=["email","orderId"])
+  1. returns.check_return_eligibility (requiredSlots=["orderId"])
+  2. billing.issue_refund (requiredSlots=["orderId"])
+  3. email.send_refund_confirmation (requiredSlots=["orderId"])
   4. No other steps allowed.
 
 TECH RULE:
@@ -62,7 +65,7 @@ SCHEMA:
   "intent": string,
   "plan": [
     {
-      "agent": "returns" | "billing" | "email" | tech,
+      "agent": "returns" | "billing" | "email" | "tech",
       "action": string,
       "input": {},
       "requiredSlots": string[]

@@ -93,26 +93,51 @@ async function main() {
     },
   );
 
-  server.tool(
-    "email.send_refund_confirmation",
-    {
-      email: z.string().email(),
-      invoiceId: z.number().int().positive(),
-    },
-    async ({ email, invoiceId }) => {
-      const subject = `Refund confirmation for invoice #${invoiceId}`;
-      const body = `We have initiated your refund for invoice #${invoiceId}. If you have questions, reply to this email.`;
+server.tool(
+  "email.send_refund_confirmation",
+  {
+    email: z.string().email(),
+    invoiceId: z.number().int().positive(),
+    description: z.string().optional(),
+    amount: z.number().optional(),
+  },
+  async ({ email, invoiceId, description, amount }) => {
 
-      const result = await emailTool.send({
-        to: email,
-        subject,
-        body,
-        metadata: { invoiceId, type: "refund_confirmation" },
-      });
+    const subject = `Your Refund Confirmation – Invoice #${invoiceId}`;
 
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
-    },
-  );
+    const body = `
+Hello,
+
+Your refund has been successfully processed.
+
+Invoice ID: ${invoiceId}
+Item: ${description ?? "Not specified"}
+Amount: €${amount ?? "N/A"}
+
+If you have any questions, feel free to reply to this email.
+
+Best regards,
+Support Team
+    `.trim();
+
+    const result = await emailTool.send({
+      to: email,
+      subject,
+      body,
+      metadata: {
+        invoiceId,
+        description,
+        amount,
+        type: "refund_confirmation"
+      }
+    });
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(result) }]
+    };
+  }
+);
+
 
   server.tool(
     "kb.search",

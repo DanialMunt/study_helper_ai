@@ -6,9 +6,14 @@ import * as nodemailer from "nodemailer";
 
 type EmailSendInput = {
   to: string;
-  subject: string;
-  body: string;
-  metadata?: Record<string, any>;
+  subject?: string;
+  body?: string;
+  metadata?: {
+    invoiceId?: number;
+    description?: string;
+    amount?: number;
+    type?: string;
+  };
 };
 
 @Injectable()
@@ -43,12 +48,51 @@ export class EmailTool {
 
     await fs.appendFile(this.outboxPath, JSON.stringify(record) + "\n", "utf8");
 
+    const desc = input.metadata?.description ?? "Your item";
+    const amt = input.metadata?.amount ?? "N/A";
+    const inv = input.metadata?.invoiceId ?? "N/A";
+
+    const subject = input.subject ?? `Refund Confirmation for Invoice #${inv}`;
+
+    const textBody = 
+`Hello,
+
+Your refund has been successfully processed.
+
+Invoice: #${inv}
+Item: ${desc}
+Amount: €${amt}
+
+If you have any questions, feel free to contact support.
+
+Best regards,
+Store Support Team`;
+
+    const htmlBody = `
+      <div style="font-family: Arial; font-size: 15px;">
+        <p>Hello,</p>
+        <p>Your refund has been <strong>successfully processed</strong>.</p>
+
+        <h3>Refund Details</h3>
+        <ul>
+          <li><strong>Invoice ID:</strong> ${inv}</li>
+          <li><strong>Item:</strong> ${desc}</li>
+          <li><strong>Amount:</strong> €${amt}</li>
+        </ul>
+
+        <p>If you have any questions, feel free to contact support.</p>
+
+        <p>Best regards,<br />Store Support Team</p>
+      </div>
+    `;
+
     try {
       await this.transporter.sendMail({
         from: this.config.get<string>("EMAIL_USER"),
         to: input.to,
-        subject: input.subject,
-        text: input.body,
+        subject,
+        text: textBody,
+        html: htmlBody,
       });
 
       this.logger.log(`Email sent successfully: ${id}`);
