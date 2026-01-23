@@ -48,12 +48,20 @@ export class EmailTool {
       'utf8',
     );
 
+    const messageId = `<${id}@${this.config.get<string>('EMAIL_HOST')}>`;
+    const threadRef = Date.now().toString();
+
     try {
       await this.transporter.sendMail({
         from: this.config.get<string>('EMAIL_USER'),
         to: input.to,
         subject: input.subject,
         text: input.body,
+
+        headers: {
+          'Message-ID': messageId,
+          'X-Entity-Ref-ID': threadRef,
+        },
       });
 
       this.logger.log(`Email sent successfully: ${id}`);
