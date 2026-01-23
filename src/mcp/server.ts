@@ -1,166 +1,133 @@
-import "reflect-metadata";
-import "dotenv/config";
-import { NestFactory } from "@nestjs/core";
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
-import { EmailTool } from "../tools/email/email.tool";
+import 'reflect-metadata';
+import 'dotenv/config';
+import { NestFactory } from '@nestjs/core';
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
 
-import { ReturnTool } from "../tools/return/return.tool";
-import { BillingTool } from "../tools/billing/billing.tool";
-import { KbTool } from "src/tools/kb/kb.tool";
-import { McpModule } from "./mcp.module";
-
+import { EmailTool } from '../tools/email/email.tool';
+import { ReturnTool } from '../tools/return/return.tool';
+import { BillingTool } from '../tools/billing/billing.tool';
+import { KbTool } from 'src/tools/kb/kb.tool';
+import { McpModule } from './mcp.module';
 
 async function main() {
-
   const app = await NestFactory.createApplicationContext(McpModule, {
-    // logger: ["error", "warn"],
     logger: false,
   });
-
-
-
 
   const returnTool = app.get(ReturnTool);
   const billingTool = app.get(BillingTool);
   const emailTool = app.get(EmailTool);
-  const kbTool = app.get(KbTool)
-
+  const kbTool = app.get(KbTool);
 
   const server = new McpServer({
-    name: "customer-service-mcp",
-    version: "0.1.0",
+    name: 'customer-service-mcp',
+    version: '0.1.0',
   });
 
-  // --- RETURNS ---
   server.tool(
-    "returns.check_eligibility",
-    {
-      invoiceId: z.number().int().positive(),
-    },
+    'returns.check_eligibility',
+    { invoiceId: z.number().int().positive() },
     async ({ invoiceId }) => {
       const result = await returnTool.handle(invoiceId);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-      };
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
   );
 
-
-
-
-  // --- BILLING ---
   server.tool(
-    "billing.issue_refund",
-    {
-      invoiceId: z.number().int().positive(),
-    },
+    'billing.issue_refund',
+    { invoiceId: z.number().int().positive() },
     async ({ invoiceId }) => {
       const result = await billingTool.issueRefund(invoiceId);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-      };
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
   );
 
   server.tool(
-    "billing.get_invoice_details",
-    {
-      invoiceId: z.number().int().positive(),
-    },
+    'billing.get_invoice_details',
+    { invoiceId: z.number().int().positive() },
     async ({ invoiceId }) => {
       const result = await billingTool.getInvoiceDetails(invoiceId);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-      };
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
   );
 
   server.tool(
-    "email.send",
+    'email.send',
     {
-      to: z.string().min(3),
+      to: z.string().email(),
       subject: z.string().min(1),
       body: z.string().min(1),
       metadata: z.record(z.string(), z.any()).optional(),
     },
     async ({ to, subject, body, metadata }) => {
       const result = await emailTool.send({ to, subject, body, metadata });
-      return {
-        content: [{ type: "text", text: JSON.stringify(result) }],
-      };
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
   );
 
-server.tool(
-  "email.send_refund_confirmation",
-  {
-    email: z.string().email(),
-    invoiceId: z.number().int().positive(),
-    description: z.string().optional(),
-    amount: z.number().optional(),
-  },
-  async ({ email, invoiceId, description, amount }) => {
+  server.tool(
+    'email.send_refund_confirmation',
+    {
+      email: z.string().email(),
+      invoiceId: z.number().int().positive(),
+      description: z.string().optional(),
+      amount: z.number().optional(),
+    },
+    async ({ email, invoiceId, description, amount }) => {
+      const subject = `Your Refund Confirmation – Invoice #${invoiceId}`;
 
-    const subject = `Your Refund Confirmation – Invoice #${invoiceId}`;
-
-    const body = `
+      const body = `
 Hello,
 
 Your refund has been successfully processed.
 
 Invoice ID: ${invoiceId}
-Item: ${description ?? "Not specified"}
-Amount: €${amount ?? "N/A"}
+Item: ${description ?? 'Not specified'}
+Amount: €${amount ?? 'N/A'}
 
 If you have any questions, feel free to reply to this email.
 
 Best regards,
 Support Team
-    `.trim();
+      `.trim();
 
-    const result = await emailTool.send({
-      to: email,
-      subject,
-      body,
-      metadata: {
-        invoiceId,
-        description,
-        amount,
-        type: "refund_confirmation"
-      }
-    });
+      const result = await emailTool.send({
+        to: email,
+        subject,
+        body,
+        metadata: {
+          invoiceId,
+          description,
+          amount,
+          type: 'refund_confirmation',
+        },
+      });
 
-    return {
-      content: [{ type: "text", text: JSON.stringify(result) }]
-    };
-  }
-);
-
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+      };
+    },
+  );
 
   server.tool(
-    "kb.search",
+    'kb.search',
     {
       query: z.string().min(2),
       limit: z.number().int().min(1).max(5).optional(),
     },
     async ({ query, limit }) => {
       const result = await kbTool.search(query, limit ?? 3);
-      return { content: [{ type: "text", text: JSON.stringify(result) }] };
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
     },
   );
 
-
-
-
-  // Start MCP server over stdio
   const transport = new StdioServerTransport();
   await server.connect(transport);
 }
 
 main().catch((err) => {
-  // stderr is OK
-  console.error("MCP server crashed:", err);
+  console.error('MCP server crashed:', err);
   process.exit(1);
 });

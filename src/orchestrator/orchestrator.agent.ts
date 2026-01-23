@@ -13,7 +13,6 @@ import { TechSupportAgent } from 'src/agents/tech/tech.agent';
 import { ConversationStoreService } from 'src/session/conversation-store.service';
 @Injectable()
 export class OrchestratorAgent {
-  // private context: ConversationContext | null = null;
 
   constructor(
     private readonly llm: LlmService,
@@ -54,7 +53,6 @@ export class OrchestratorAgent {
     await this.store.set(sid!, ctx);
   }
 
-  // 2) Create plan if ctx doesn't exist (new session)
   if (!ctx) {
     const raw = await this.llm.generate(orchestratorPrompt(message));
 
@@ -62,8 +60,6 @@ export class OrchestratorAgent {
     try {
       planJson = extractJson(raw);
     } catch {
-      // If we have no session yet, create a temporary one only if you want.
-      // Simpler: just reply without session.
       return { reply: "Sorry, something went wrong.", sessionId: sid ?? "" };
     }
 
@@ -79,7 +75,6 @@ export class OrchestratorAgent {
       awaitingSlot: undefined,
     };
 
-    // Create DB-generated sessionId if missing
     if (!sid) {
       sid = await this.store.create(ctx);
     } else {
@@ -87,15 +82,12 @@ export class OrchestratorAgent {
     }
   }
 
-  // sid must exist now
   if (!sid) {
-    // Should not happen, but keeps TS happy
     return { reply: "Sorry, session initialization failed.", sessionId: "" };
   }
 
   const stepResults: string[] = [];
 
-  // 3) Execute plan
   while (ctx.currentStep < ctx.plan.length) {
     const step = ctx.plan[ctx.currentStep];
 
@@ -103,7 +95,6 @@ export class OrchestratorAgent {
       step.requiredSlots = ["orderId"];
     }
 
-// Ask for missing slots EXCEPT email step (email step never asks user)
     if (step.agent !== "email") {
       for (const slot of step.requiredSlots ?? []) {
         if (!ctx.slots[slot]) {
@@ -114,7 +105,6 @@ export class OrchestratorAgent {
       }
     }
 
-    // Merge slots into input
     step.input = { ...step.input, ...ctx.slots };
     const input = { ...step.input };
 
@@ -164,13 +154,13 @@ export class OrchestratorAgent {
 
       const userEmail = invoice.user.email;
       const itemDescription = invoice.description ?? "No description provided";
-      const itemAmount = invoice.amount;
-
+      const itemAmount = Number(invoice.amount);
+      const orderIdNum = Number(input.orderId);
       const emailRes = await this.mcp.callTool(
         "email.send_refund_confirmation",
         {
           email: userEmail,
-          invoiceId: input.orderId,
+          invoiceId: orderIdNum,
           description: itemDescription,
           amount: itemAmount
         }
@@ -212,7 +202,6 @@ export class OrchestratorAgent {
     await this.store.set(sid, ctx);
   }
 
-  // 4) Done
   await this.store.clear(sid);
   return { reply: stepResults.join(", "), sessionId: sid };
 }
